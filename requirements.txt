@@ -1,0 +1,16 @@
+# 泡泡改写 2P Rephraser —— 依赖清单
+# 安装命令： pip install -r requirements.txt
+
+# Web 框架：提供网页服务和 API 接口
+Flask>=3.0.0
+
+# 读取 .env 文件里的 API Key（不装也能跑，但就无法从 .env 读密钥了）
+python-dotenv>=1.0.0
+
+# 调用 DeepSeek 等大模型（它们都提供 OpenAI 兼容接口）
+# 如果你完全不打算用大模型、只用离线模板模式，这一行可以删掉
+openai>=1.40.0
+
+# 简体 -> 香港繁体转换，用于离线模式下生成粤语文本
+# 不装也能跑，只是离线粤语结果里会残留简体字
+opencc-python-reimplemented>=0.1.7

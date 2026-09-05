@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  logo.svg —— 泡泡改写的 APP 图标
+  设计：两个叠在一起的泡泡，左上砖红色泡泡写 Rude，右下浅色泡泡写 Polite，
+        正好对应本应用"从粗鲁到礼貌"的核心概念。
+  矢量图，任意放大都不会糊，同时用作网页 favicon。
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="泡泡改写图标：Rude 与 Polite 两个泡泡">
+
+  <defs>
+    <!-- 砖红泡泡的渐变，让泡泡有点体积感 -->
+    <radialGradient id="rudeGrad" cx="35%" cy="30%" r="75%">
+      <stop offset="0%"  stop-color="#D9614F"/>
+      <stop offset="100%" stop-color="#A63D2F"/>
+    </radialGradient>
+    <!-- 浅色泡泡的渐变 -->
+    <radialGradient id="politeGrad" cx="35%" cy="30%" r="75%">
+      <stop offset="0%"  stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#F0DCD4"/>
+    </radialGradient>
+  </defs>
+
+  <!-- 泡泡一：Rude（左上，砖红色，代表最粗鲁的一端） -->
+  <circle cx="48" cy="46" r="36" fill="url(#rudeGrad)"/>
+  <!-- 泡泡表面的高光小点，让它更像肥皂泡 -->
+  <ellipse cx="33" cy="27" rx="9" ry="6" fill="#FFFFFF" opacity="0.45" transform="rotate(-25 33 27)"/>
+  <!-- Rude 文字往左上偏移，避开被右下方 Polite 泡泡遮住 -->
+  <text x="42" y="49" text-anchor="middle"
+        font-family="Georgia, 'Times New Roman', serif" font-size="17" font-weight="700"
+        fill="#FFFFFF" letter-spacing="0.3">Rude</text>
+
+  <!-- 泡泡二：Polite（右下，浅色描边，代表最礼貌的一端） -->
+  <!-- 半透明填充，让两个泡泡的重叠区域看得见，体现"叠在一起" -->
+  <circle cx="82" cy="84" r="40" fill="url(#politeGrad)" fill-opacity="0.93"
+          stroke="#A63D2F" stroke-width="3.5"/>
+  <ellipse cx="68" cy="68" rx="10" ry="6.5" fill="#FFFFFF" opacity="0.8" transform="rotate(-25 68 68)"/>
+  <text x="82" y="91" text-anchor="middle"
+        font-family="Georgia, 'Times New Roman', serif" font-size="17" font-weight="700"
+        fill="#A63D2F" letter-spacing="0.5">Polite</text>
+
+</svg>

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <!-- 让页面在手机上按真实宽度显示，不缩放 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>{{ app_name }}</title>
+
+  <!-- 用泡泡图标作为浏览器标签页的小图标 -->
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/logo.svg') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body>
+<!--
+  整个应用只有这一个 HTML 文件。
+  三个页面（任务执行区 / 历史改写存储区 / 个人专区）都写在下面，
+  由 app.js 通过给 <section> 加 class="page--active" 来控制显示哪一个。
+-->
+<div id="app">
+
+  <!-- ===================================================================
+       顶部标题栏：左边是当前页面标题，右上角是泡泡图标 + APP 名
+       =================================================================== -->
+  <header class="topbar">
+    <div>
+      <span class="topbar__title" id="pageTitle">任务执行区</span>
+      <span class="topbar__subtitle" id="pageSubtitle">Pragmatic Politeness Rephraser</span>
+    </div>
+    <div class="brand">
+      <img class="brand__logo" src="{{ url_for('static', filename='img/logo.svg') }}" alt="泡泡改写图标">
+      <span class="brand__name">泡泡改写</span>
+    </div>
+  </header>
+
+  <!-- ===================================================================
+       页面一：任务执行区
+       =================================================================== -->
+  <section class="page page--active" id="page-task">
+
+    <!-- 引擎状态提示条：离线模式时显示黄色警告，由 JS 填内容 -->
+    <div id="engineNotice"></div>
+
+    <!-- ---------- 输入区 ---------- -->
+    <div class="compose">
+      <textarea class="compose__input" id="inputText"
+                placeholder="请输入你想改写的普通话句子，例如：我现在需要你的帮助"
+                maxlength="200"></textarea>
+      <div class="compose__count" id="charCount">0 / 200</div>
+
+      <!-- 两个下拉框：应用场景 + 目标语言 -->
+      <div class="field-row">
+        <div class="field">
+          <label class="field__label" for="sceneSelect">应用场景</label>
+          <!-- 选项由 app.js 根据后端 /api/config 动态生成 -->
+          <select class="field__select" id="sceneSelect"></select>
+        </div>
+        <div class="field">
+          <label class="field__label" for="langSelect">目标语言</label>
+          <select class="field__select" id="langSelect"></select>
+        </div>
+      </div>
+
+      <!-- 可勾选的附加语用变体（强硬 / 撒娇），作为第 6、7 条单独呈现 -->
+      <label class="checkbox-line">
+        <input type="checkbox" id="includeSpecial">
+        <span>附加特殊语用风格：强硬 Assertive ＋ 撒娇 Coaxing（额外生成 2 条）</span>
+      </label>
+
+      <button class="btn-primary" id="submitBtn">开始改写</button>
+    </div>
+
+    <!-- ---------- 最近 5 条历史请求 ---------- -->
+    <div class="section-title">最近提问</div>
+    <div class="recent-list" id="recentList"></div>
+
+    <!-- ---------- 改写结果区 ---------- -->
+    <div id="resultArea"></div>
+  </section>
+
+  <!-- ===================================================================
+       页面二：历史改写存储区
+       分两层：先看四个语言方块，点进去看该语言的历史记录
+       =================================================================== -->
+  <section class="page" id="page-history">
+
+    <!-- 第一层：四个语言方块 -->
+    <div id="historyTiles">
+      <div class="section-title">按目标语言分区</div>
+      <div class="lang-grid" id="langGrid"></div>
+      <div class="notice notice--info" style="margin-top:14px;">
+        历史记录按<strong>目标语言</strong>归档；每条记录上会另外标注系统自动识别出的<strong>原文语言</strong>，可手动修正。
+      </div>
+    </div>
+
+    <!-- 第二层：某个语言分区内部的记录列表（默认隐藏） -->
+    <div id="historyDetail" hidden>
+      <div class="subheader">
+        <button class="back-btn" id="historyBackBtn">← 返回语言分区</button>
+        <button class="btn-outline btn-outline--danger" id="clearLangBtn"
+                style="flex:0 0 auto;padding:6px 12px;">清空本区</button>
+      </div>
+      <div class="section-title" id="historyDetailTitle"></div>
+      <div id="historyList"></div>
+    </div>
+  </section>
+
+  <!-- ===================================================================
+       页面三：个人专区
+       =================================================================== -->
+  <section class="page" id="page-profile">
+
+    <!-- 头像 + 昵称 -->
+    <div class="profile-head">
+      <img class="profile-avatar" src="{{ url_for('static', filename='img/logo.svg') }}" alt="头像">
+      <div class="nickname-row">
+        <input class="nickname-input" id="nicknameInput" placeholder="点击输入昵称" maxlength="16">
+        <span style="color:var(--text-soft);font-size:13px;">✎</span>
+      </div>
+    </div>
+
+    <!-- 积分卡片 -->
+    <div class="points-card">
+      <div class="points-card__value" id="pointsValue">0</div>
+      <div class="points-card__label">积分（提问次数）</div>
+      <div class="progress"><div class="progress__fill" id="pointsProgress" style="width:0%"></div></div>
+      <div class="points-card__hint" id="pointsHint"></div>
+    </div>
+
+    <!-- 场景解锁清单 -->
+    <div class="section-title">场景解锁</div>
+    <div id="unlockList"></div>
+
+    <!-- 收藏列表 -->
+    <div class="section-title">我的收藏 <span id="favCount" style="color:var(--text-soft);font-weight:400;"></span></div>
+    <div id="favList"></div>
+
+    <!-- 数据管理 -->
+    <div class="section-title">数据管理</div>
+    <div class="btn-row">
+      <button class="btn-outline" id="exportBtn">导出全部数据 (JSON)</button>
+      <button class="btn-outline btn-outline--danger" id="resetBtn">清空所有数据</button>
+    </div>
+    <div class="notice notice--info" style="margin-top:12px;">
+      所有数据保存在<strong>你自己浏览器的本地存储</strong>里，刷新页面不会丢失；
+      但换电脑、换浏览器或清理浏览器缓存后会消失，重要研究数据请及时导出。
+    </div>
+  </section>
+
+  <!-- ===================================================================
+       底部导航栏：三个图标切换三个页面
+       图标用内联 SVG，不依赖任何图标库
+       =================================================================== -->
+  <nav class="tabbar">
+    <button class="tabbar__btn is-active" data-page="task">
+      <!-- 铅笔图标 = 任务执行 -->
+      <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+      <span>改写</span>
+    </button>
+    <button class="tabbar__btn" data-page="history">
+      <!-- 文件夹图标 = 历史存储 -->
+      <svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+      <span>历史</span>
+    </button>
+    <button class="tabbar__btn" data-page="profile">
+      <!-- 人像图标 = 个人专区 -->
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg>
+      <span>我的</span>
+    </button>
+  </nav>
+
+  <!-- 轻提示（复制成功、收藏成功等），由 JS 控制显隐 -->
+  <div class="toast" id="toast"></div>
+</div>
+
+<!-- 先加载存储模块，再加载主逻辑，顺序不能反 -->
+<script src="{{ url_for('static', filename='js/storage.js') }}"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

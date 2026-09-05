@@ -1,0 +1,891 @@
+/* ==========================================================================
+   style.css —— 泡泡改写 2P Rephraser 全部样式
+   主题：砖红色 · 布局简约 · 手机优先（在电脑上会居中显示成一个窄窄的 App）
+
+   目录：
+     1. 主题变量与全局重置
+     2. 顶部标题栏（含右上角泡泡图标与 APP 名）
+     3. 页面容器与切换
+     4. 页面一：任务执行区（输入框、下拉框、结果卡片）
+     5. 页面二：历史改写存储区（语言方块、记录列表）
+     6. 页面三：个人专区（昵称、积分、解锁、收藏）
+     7. 底部导航栏
+     8. 通用组件（按钮、提示条、空状态、Toast 提示）
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. 主题变量与全局重置
+   把所有颜色集中定义成 CSS 变量，想换主题色只需要改这一处
+   -------------------------------------------------------------------------- */
+:root {
+  --brick:        #A63D2F;   /* 主题砖红 */
+  --brick-dark:   #7E2D22;   /* 深砖红，用于强调和悬停 */
+  --brick-light:  #E8CFC7;   /* 浅砖红，用于边框和标签底色 */
+  --brick-pale:   #F6E9E4;   /* 极浅砖红，用于卡片底色 */
+  --bg:           #FBF7F4;   /* 页面背景（米白） */
+  --surface:      #FFFFFF;   /* 卡片背景 */
+  --text:         #2E2320;   /* 主文字色 */
+  --text-soft:    #7A6A63;   /* 次要文字色 */
+  --border:       #EADFD9;   /* 分隔线 */
+  --shadow:       0 2px 10px rgba(120, 60, 45, 0.08);
+  --radius:       14px;      /* 统一圆角 */
+  --nav-height:   62px;      /* 底部导航高度，用于给内容留出空间 */
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+               "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 整个 App 在宽屏上居中，模拟手机 App 的观感 */
+#app {
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100vh;
+  background: var(--bg);
+  position: relative;
+  /* 给底部导航栏留出空间，否则内容会被遮住 */
+  padding-bottom: calc(var(--nav-height) + 16px);
+  box-shadow: 0 0 40px rgba(120, 60, 45, 0.06);
+}
+
+/* --------------------------------------------------------------------------
+   2. 顶部标题栏
+   需求：右上角插入泡泡 APP 图标和 APP 名"泡泡改写"
+   -------------------------------------------------------------------------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 10px;
+  background: var(--bg);
+  position: sticky;      /* 滚动时固定在顶部 */
+  top: 0;
+  z-index: 20;
+  border-bottom: 1px solid var(--border);
+}
+
+.topbar__title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--brick-dark);
+  letter-spacing: 0.5px;
+}
+
+.topbar__subtitle {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-soft);
+  letter-spacing: 0.6px;
+}
+
+/* 右上角的图标 + 应用名 */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brand__logo {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+}
+
+.brand__name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--brick);
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------------------------
+   3. 页面容器与切换
+   三个页面都在同一个 HTML 里，通过 .page--active 控制显示哪一个
+   -------------------------------------------------------------------------- */
+.page {
+  display: none;          /* 默认隐藏 */
+  padding: 16px;
+  animation: fadeIn 0.22s ease;
+}
+
+.page--active {
+  display: block;         /* 当前页面才显示 */
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--brick-dark);
+  margin: 22px 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 标题左边的小竖条装饰 */
+.section-title::before {
+  content: "";
+  width: 3px;
+  height: 14px;
+  background: var(--brick);
+  border-radius: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   4. 页面一：任务执行区
+   -------------------------------------------------------------------------- */
+
+/* ---- 输入区外框 ---- */
+.compose {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  box-shadow: var(--shadow);
+}
+
+.compose__input {
+  width: 100%;
+  min-height: 92px;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text);
+  background: #FDFBFA;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.compose__input:focus {
+  border-color: var(--brick);
+}
+
+/* 字数计数器，超出上限变红 */
+.compose__count {
+  text-align: right;
+  font-size: 12px;
+  color: var(--text-soft);
+  margin-top: 4px;
+}
+
+.compose__count.is-over {
+  color: #C0392B;
+  font-weight: 700;
+}
+
+/* ---- 下拉框区域 ---- */
+.field-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.field {
+  flex: 1;
+  min-width: 0;   /* 防止长文字把 flex 撑破 */
+}
+
+.field__label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-soft);
+  margin-bottom: 4px;
+}
+
+.field__select {
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #FDFBFA;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--text);
+  cursor: pointer;
+  outline: none;
+}
+
+.field__select:focus { border-color: var(--brick); }
+
+/* 被锁定的下拉选项显示成灰色 */
+.field__select option:disabled {
+  color: #BBB;
+}
+
+/* ---- 附加语用变体勾选框 ---- */
+.checkbox-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--text-soft);
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox-line input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--brick);
+  cursor: pointer;
+}
+
+/* ---- 主按钮 ---- */
+.btn-primary {
+  width: 100%;
+  margin-top: 14px;
+  padding: 12px;
+  border: none;
+  border-radius: 10px;
+  background: var(--brick);
+  color: #fff;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.08s;
+}
+
+.btn-primary:hover:not(:disabled) { background: var(--brick-dark); }
+.btn-primary:active:not(:disabled) { transform: scale(0.985); }
+
+.btn-primary:disabled {
+  background: #D8C7C1;
+  cursor: not-allowed;
+}
+
+/* ---- 最近 5 条历史请求 ---- */
+.recent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.recent-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.recent-item:hover {
+  border-color: var(--brick-light);
+  background: var(--brick-pale);
+}
+
+.recent-item__text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  /* 一行放不下就用省略号 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recent-item__lang {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--brick);
+  background: var(--brick-pale);
+  border-radius: 20px;
+  padding: 2px 9px;
+}
+
+/* ---- 结果卡片（核心！） ---- */
+.result-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+/* 顶部渐变色条：颜色由 JS 根据礼貌程度动态设置 */
+.result-card__bar {
+  height: 6px;
+  width: 100%;
+}
+
+.result-card__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 14px 0;
+  flex-wrap: wrap;
+}
+
+.result-card__zh {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.result-card__en {
+  font-size: 11px;
+  color: var(--text-soft);
+}
+
+/* 改写后的正文 */
+.result-card__text {
+  padding: 8px 14px 12px;
+  font-size: 16px;
+  line-height: 1.7;
+  color: var(--text);
+  /* 保留用户文本里的换行 */
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 语言学 / 语用学解读的两行标签 */
+.result-card__analysis {
+  padding: 0 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.tag-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-soft);
+}
+
+.tag-line__badge {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--brick);
+  background: var(--brick-pale);
+  border: 1px solid var(--brick-light);
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-top: 1px;
+}
+
+/* 卡片底部的操作按钮（红心 + 复制） */
+.result-card__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: #fff;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--text-soft);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.icon-btn:hover {
+  border-color: var(--brick-light);
+  background: var(--brick-pale);
+  color: var(--brick);
+}
+
+/* 已收藏状态：红心变实心红色 */
+.icon-btn.is-faved {
+  color: #E0245E;
+  border-color: #F5C6D3;
+  background: #FDEEF3;
+}
+
+/* --------------------------------------------------------------------------
+   5. 页面二：历史改写存储区
+   -------------------------------------------------------------------------- */
+
+/* ---- 四个语言方块（2 × 2 网格） ---- */
+.lang-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.lang-tile {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 12px;
+  text-align: center;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  transition: transform 0.12s, border-color 0.15s;
+}
+
+.lang-tile:hover {
+  transform: translateY(-2px);
+  border-color: var(--brick-light);
+}
+
+.lang-tile__flag {
+  font-size: 34px;
+  line-height: 1.2;
+}
+
+.lang-tile__name {
+  margin-top: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--brick-dark);
+}
+
+.lang-tile__count {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-soft);
+}
+
+/* ---- 语言分区内部的返回条 ---- */
+.subheader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--brick);
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+/* ---- 单条历史记录 ---- */
+.history-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 10px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+.history-item__head {
+  padding: 12px 14px;
+  cursor: pointer;
+}
+
+.history-item__text {
+  font-size: 14px;
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.history-item__meta {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-soft);
+}
+
+.chip {
+  font-size: 11px;
+  color: var(--brick);
+  background: var(--brick-pale);
+  border-radius: 20px;
+  padding: 2px 9px;
+}
+
+/* 展开后的五档结果，用一条条小色带呈现 */
+.history-item__body {
+  border-top: 1px dashed var(--border);
+  padding: 10px 14px 12px;
+  background: #FDFBFA;
+}
+
+.mini-result {
+  display: flex;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px dashed var(--border);
+}
+
+.mini-result:last-child { border-bottom: none; }
+
+/* 左侧竖着的颜色条，直接体现礼貌程度 */
+.mini-result__bar {
+  width: 4px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.mini-result__name {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-soft);
+}
+
+.mini-result__text {
+  font-size: 14px;
+  word-break: break-word;
+}
+
+/* --------------------------------------------------------------------------
+   6. 页面三：个人专区
+   -------------------------------------------------------------------------- */
+.profile-head {
+  text-align: center;
+  padding: 10px 0 18px;
+}
+
+.profile-avatar {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 10px;
+}
+
+.nickname-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.nickname-input {
+  width: 160px;
+  text-align: center;
+  border: none;
+  border-bottom: 2px dashed var(--brick-light);
+  background: transparent;
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--brick-dark);
+  padding: 4px 0;
+  outline: none;
+}
+
+.nickname-input:focus { border-bottom-color: var(--brick); }
+
+/* ---- 积分卡片 ---- */
+.points-card {
+  background: linear-gradient(135deg, var(--brick) 0%, var(--brick-dark) 100%);
+  border-radius: var(--radius);
+  color: #fff;
+  padding: 18px;
+  text-align: center;
+  box-shadow: var(--shadow);
+}
+
+.points-card__value {
+  font-size: 40px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.points-card__label {
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+/* 解锁进度条 */
+.progress {
+  margin-top: 12px;
+  height: 7px;
+  background: rgba(255, 255, 255, 0.28);
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+.progress__fill {
+  height: 100%;
+  background: #fff;
+  border-radius: 20px;
+  transition: width 0.4s ease;
+}
+
+.points-card__hint {
+  margin-top: 8px;
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+/* ---- 场景解锁清单 ---- */
+.unlock-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.unlock-item--locked { color: var(--text-soft); }
+
+.unlock-item__need {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--brick);
+  background: var(--brick-pale);
+  border-radius: 20px;
+  padding: 2px 9px;
+}
+
+/* ---- 收藏列表 ---- */
+.fav-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 10px;
+  overflow: hidden;
+  display: flex;
+  box-shadow: var(--shadow);
+}
+
+.fav-item__bar {
+  width: 5px;
+  flex-shrink: 0;
+}
+
+.fav-item__body {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+}
+
+.fav-item__text {
+  font-size: 15px;
+  word-break: break-word;
+}
+
+.fav-item__meta {
+  margin-top: 5px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-soft);
+}
+
+.fav-item__remove {
+  border: none;
+  background: none;
+  color: #C0392B;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 10px 12px;
+  align-self: flex-start;
+}
+
+/* ---- 数据管理按钮组 ---- */
+.btn-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.btn-outline {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid var(--brick-light);
+  border-radius: 10px;
+  background: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--brick);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-outline:hover { background: var(--brick-pale); }
+
+.btn-outline--danger {
+  border-color: #F0C8C2;
+  color: #C0392B;
+}
+
+.btn-outline--danger:hover { background: #FDEEEC; }
+
+/* --------------------------------------------------------------------------
+   7. 底部导航栏（三个图标切换三个页面）
+   -------------------------------------------------------------------------- */
+.tabbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--nav-height);
+  max-width: 480px;
+  margin: 0 auto;
+  display: flex;
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid var(--border);
+  z-index: 30;
+}
+
+.tabbar__btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 11px;
+  color: var(--text-soft);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.tabbar__btn svg {
+  width: 22px;
+  height: 22px;
+  /* 用 currentColor 让图标颜色跟随文字颜色变化 */
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* 当前选中的标签变成砖红色 */
+.tabbar__btn.is-active {
+  color: var(--brick);
+  font-weight: 700;
+}
+
+/* --------------------------------------------------------------------------
+   8. 通用组件
+   -------------------------------------------------------------------------- */
+
+/* ---- 顶部提示条（离线模式提醒、错误提示） ---- */
+.notice {
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+
+.notice--warn {
+  background: #FFF7E6;
+  border: 1px solid #F5DFA8;
+  color: #8A6320;
+}
+
+.notice--error {
+  background: #FDEEEC;
+  border: 1px solid #F0C8C2;
+  color: #A5342A;
+}
+
+.notice--info {
+  background: var(--brick-pale);
+  border: 1px solid var(--brick-light);
+  color: var(--brick-dark);
+}
+
+/* ---- 空状态 ---- */
+.empty {
+  text-align: center;
+  padding: 34px 16px;
+  color: var(--text-soft);
+  font-size: 13px;
+}
+
+.empty__icon {
+  font-size: 32px;
+  opacity: 0.5;
+  display: block;
+  margin-bottom: 8px;
+}
+
+/* ---- 加载中的骨架动画 ---- */
+.loading {
+  text-align: center;
+  padding: 30px 0;
+  color: var(--brick);
+  font-size: 13px;
+}
+
+.loading__dots::after {
+  content: "";
+  animation: dots 1.2s steps(4, end) infinite;
+}
+
+@keyframes dots {
+  0%   { content: ""; }
+  25%  { content: "·"; }
+  50%  { content: "··"; }
+  75%  { content: "···"; }
+  100% { content: ""; }
+}
+
+/* ---- Toast 轻提示（复制成功等） ---- */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--nav-height) + 18px);
+  transform: translateX(-50%) translateY(12px);
+  background: rgba(46, 35, 32, 0.92);
+  color: #fff;
+  font-size: 13px;
+  padding: 9px 18px;
+  border-radius: 20px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s, transform 0.22s;
+  z-index: 50;
+  white-space: nowrap;
+}
+
+.toast.is-show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
