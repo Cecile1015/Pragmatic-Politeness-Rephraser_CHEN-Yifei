@@ -867,6 +867,73 @@ html, body {
   100% { content: ""; }
 }
 
+/* ---- 访问口令遮罩层 ---- */
+/* 启用了 ACCESS_CODE 时，未解锁的访客会看到这一层，盖住整个界面 */
+.gate {
+  position: fixed;
+  inset: 0;                      /* 等价于 top/right/bottom/left 都是 0 */
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(251, 247, 244, 0.96);
+  backdrop-filter: blur(6px);
+}
+
+.gate__box {
+  width: 100%;
+  max-width: 340px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 30px rgba(120, 60, 45, 0.14);
+  padding: 26px 22px;
+  text-align: center;
+}
+
+.gate__box img {
+  width: 66px;
+  height: 66px;
+  margin-bottom: 10px;
+}
+
+.gate__box h2 {
+  margin: 0 0 4px;
+  font-size: 17px;
+  color: var(--brick-dark);
+}
+
+.gate__box p {
+  margin: 0 0 16px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-soft);
+}
+
+.gate__input {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #FDFBFA;
+  font-family: inherit;
+  font-size: 15px;
+  text-align: center;
+  letter-spacing: 2px;
+  color: var(--text);
+  outline: none;
+}
+
+.gate__input:focus { border-color: var(--brick); }
+
+.gate__err {
+  margin-top: 9px;
+  font-size: 12px;
+  color: #C0392B;
+  min-height: 18px;    /* 预留高度，出现错误时页面不跳动 */
+}
+
 /* ---- Toast 轻提示（复制成功等） ---- */
 .toast {
   position: fixed;

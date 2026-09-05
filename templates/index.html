@@ -173,6 +173,23 @@
   <div class="toast" id="toast"></div>
 </div>
 
+<!--
+  访问口令遮罩层。
+  只有当服务器设置了 ACCESS_CODE 环境变量、且访客尚未解锁时才显示。
+  放在 #app 外面，这样它能盖住包括底部导航在内的整个界面。
+-->
+<div class="gate" id="gate" hidden>
+  <div class="gate__box">
+    <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="泡泡改写">
+    <h2>泡泡改写</h2>
+    <p>这是一个小范围试用版本，<br>请输入研究者提供的访问口令</p>
+    <input class="gate__input" id="gateInput" type="password"
+           placeholder="访问口令" autocomplete="off">
+    <div class="gate__err" id="gateErr"></div>
+    <button class="btn-primary" id="gateBtn" style="margin-top:2px;">进入</button>
+  </div>
+</div>
+
 <!-- 先加载存储模块，再加载主逻辑，顺序不能反 -->
 <script src="{{ url_for('static', filename='js/storage.js') }}"></script>
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>

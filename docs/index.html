@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<!--
+  ============================================================
+  泡泡改写 2P Rephraser —— GitHub Pages 自动跳转页
+
+  【这个文件做什么】
+  把访客从 GitHub Pages 地址自动送到 Render 上的正式应用。
+
+  【使用前必须改一处】
+  把下面出现的三处 https://你的应用.onrender.com
+  全部换成你在 Render 拿到的真实网址（三处：meta、script、a 标签）。
+
+  【为什么要写三遍】
+  meta refresh   —— 最基础，禁用 JS 的浏览器也能跳
+  location.replace —— 更快，且不会在浏览器历史里留一条记录
+                      （否则访客点"后退"会被弹回这一页，出不去）
+  a 标签          —— 万一前两者都失效，访客还能手动点
+  ============================================================
+-->
+
+<!-- 0 秒后跳转；把 0 改成 2 可以让访客先看清这是哪个项目 -->
+<meta http-equiv="refresh" content="0; url=https://你的应用.onrender.com">
+
+<!-- 告诉搜索引擎正式地址是哪个，避免两个网址互相分散权重 -->
+<link rel="canonical" href="https://你的应用.onrender.com">
+
+<title>泡泡改写 2P Rephraser · 正在跳转</title>
+
+<style>
+  html,body{height:100%;margin:0}
+  body{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:14px;background:#FBF6F3;color:#2C201C;
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+    text-align:center;padding:24px;
+  }
+  h1{margin:0;font-size:19px;font-weight:700;color:#6E2A20}
+  p{margin:0;font-size:13.5px;color:#7B6A63;line-height:1.7}
+  a{color:#A63D2F;font-weight:600}
+  svg{width:88px;height:88px}
+</style>
+</head>
+
+<body>
+  <!-- 泡泡图标，跳转前的这一瞬间也保持品牌一致 -->
+  <svg viewBox="0 0 128 128" aria-hidden="true">
+    <defs>
+      <radialGradient id="gr" cx="35%" cy="30%" r="75%">
+        <stop offset="0%" stop-color="#D9614F"/><stop offset="100%" stop-color="#A63D2F"/>
+      </radialGradient>
+      <radialGradient id="gp" cx="35%" cy="30%" r="75%">
+        <stop offset="0%" stop-color="#FFFFFF"/><stop offset="100%" stop-color="#F0DCD4"/>
+      </radialGradient>
+    </defs>
+    <circle cx="48" cy="46" r="36" fill="url(#gr)"/>
+    <text x="42" y="49" text-anchor="middle" font-family="Georgia,serif"
+          font-size="17" font-weight="700" fill="#fff">Rude</text>
+    <circle cx="82" cy="84" r="40" fill="url(#gp)" fill-opacity=".95"
+            stroke="#A63D2F" stroke-width="3.5"/>
+    <text x="82" y="91" text-anchor="middle" font-family="Georgia,serif"
+          font-size="17" font-weight="700" fill="#A63D2F">Polite</text>
+  </svg>
+
+  <h1>泡泡改写 2P Rephraser</h1>
+  <p>
+    正在前往应用……<br>
+    没有自动跳转的话，请点
+    <a id="go" href="https://你的应用.onrender.com">这里</a>
+  </p>
+
+<script>
+  // 用 replace 而不是 href：不在历史记录里留痕，访客按"后退"能正常离开
+  location.replace("https://你的应用.onrender.com");
+</script>
+</body>
+</html>

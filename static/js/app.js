@@ -30,6 +30,60 @@
   let currentHistoryLang = null;
 
   /* =========================================================================
+     零点五、访问口令
+     ========================================================================= */
+
+  // 访客输入过的口令存在浏览器里，下次打开不用再输
+  const CODE_KEY = 'pp_access_code';
+
+  function getCode() {
+    try { return localStorage.getItem(CODE_KEY) || ''; } catch (e) { return ''; }
+  }
+  function saveCode(c) {
+    try { localStorage.setItem(CODE_KEY, c); } catch (e) { /* 无痕模式会失败，忽略 */ }
+  }
+  function clearCode() {
+    try { localStorage.removeItem(CODE_KEY); } catch (e) {}
+  }
+
+  /** 显示口令遮罩层 */
+  function showGate(msg) {
+    $('gate').hidden = false;
+    $('gateErr').textContent = msg || '';
+    $('gateInput').value = '';
+    $('gateInput').focus();
+  }
+
+  /** 校验口令；正确就存下来并关掉遮罩 */
+  async function tryUnlock() {
+    const code = $('gateInput').value.trim();
+    if (!code) { $('gateErr').textContent = '请输入口令'; return; }
+
+    $('gateBtn').disabled = true;
+    $('gateBtn').textContent = '验证中…';
+    try {
+      const r = await fetch('/api/unlock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: code })
+      });
+      const d = await r.json();
+      if (d.ok) {
+        saveCode(code);
+        $('gate').hidden = true;
+        toast('已解锁');
+      } else {
+        $('gateErr').textContent = d.error || '口令不对';
+      }
+    } catch (e) {
+      $('gateErr').textContent = '网络异常，请稍后重试';
+    } finally {
+      $('gateBtn').disabled = false;
+      $('gateBtn').textContent = '进入';
+    }
+  }
+
+  /* =========================================================================
      一、通用工具函数
      ========================================================================= */
 
@@ -173,8 +227,14 @@
   function renderEngineNotice() {
     const box = $('engineNotice');
     if (CONFIG.engineAvailable) {
+      // 有额度信息就一并显示，方便你随时知道今天还能用多少次
+      let quota = '';
+      if (CONFIG.quota) {
+        const q = CONFIG.quota;
+        quota = `　今日剩余 <strong>${q.remaining}</strong> / ${q.limit} 次`;
+      }
       box.innerHTML = `<div class="notice notice--info">
-        大模型引擎已就绪（${esc(CONFIG.engineModel)}），改写结果与语用分析由模型实时生成。
+        大模型引擎已就绪（${esc(CONFIG.engineModel)}），改写结果与语用分析由模型实时生成。${quota}
       </div>`;
     } else {
       box.innerHTML = `<div class="notice notice--warn">
@@ -250,10 +310,13 @@
     $('resultArea').innerHTML = `<div class="loading">正在生成各档礼貌程度的改写<span class="loading__dots"></span></div>`;
 
     try {
-      // 向后端发请求
+      // 向后端发请求。口令通过 X-Access-Code 请求头带上去
       const resp = await fetch('/api/rephrase', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Access-Code': getCode()
+        },
         body: JSON.stringify({
           text: text,
           scene: scene,
@@ -264,11 +327,23 @@
 
       const data = await resp.json();
 
+      // 口令不对或已被管理员改掉：清掉本地旧口令，重新弹遮罩
+      if (resp.status === 401 || data.needCode) {
+        clearCode();
+        $('resultArea').innerHTML = '';
+        showGate('口令已失效，请重新输入');
+        return;
+      }
+
       if (!resp.ok || !data.ok) {
         $('resultArea').innerHTML =
           `<div class="notice notice--error">改写失败：${esc(data.error || '服务器错误')}</div>`;
         return;
       }
+
+      // 更新配置里的额度快照，让提示条上的"今日剩余"保持最新
+      if (data.quota) CONFIG.quota = data.quota;
+      renderEngineNotice();
 
       // ---- 成功：积 1 分（需求：积分仅与提问次数挂钩）----
       Storage.addPoint();
@@ -583,6 +658,12 @@
     // 提交改写
     $('submitBtn').addEventListener('click', handleSubmit);
 
+    // 口令遮罩：点按钮或按回车都能提交
+    $('gateBtn').addEventListener('click', tryUnlock);
+    $('gateInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') tryUnlock();
+    });
+
     // 历史页：返回语言分区
     $('historyBackBtn').addEventListener('click', renderHistoryTiles);
 
@@ -632,6 +713,9 @@
     bindCharCount();
     renderRecent();
     bindEvents();
+
+    // 服务器要求口令、而本地还没存过口令时，进门就弹遮罩
+    if (CONFIG.codeRequired && !getCode()) showGate('');
   }
 
   // 等 HTML 结构准备好再启动

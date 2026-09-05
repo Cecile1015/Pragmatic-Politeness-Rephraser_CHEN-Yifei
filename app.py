@@ -24,7 +24,7 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, request
 
 from rephraser import __app_name__, __version__
-from rephraser import llm_client, offline_engine
+from rephraser import guard, llm_client, offline_engine
 from rephraser.config import (
     LANGUAGE_KEYS,
     LANGUAGE_LABELS,
@@ -73,7 +73,28 @@ def api_config():
     cfg["engineModel"] = llm_client.model_name() if llm_client.is_available() else None
     cfg["appName"] = __app_name__
     cfg["version"] = __version__
+
+    # 是否需要访问口令（注意：这里只告诉前端"要不要问"，绝不返回口令本身）
+    cfg["codeRequired"] = guard.code_required()
+    # 今日额度情况，显示在页面上让你随时知道余量
+    cfg["quota"] = guard.snapshot() if llm_client.is_available() else None
     return jsonify(cfg)
+
+
+# ---------------------------------------------------------------------------
+# 接口 1.5：校验访问口令
+# ---------------------------------------------------------------------------
+@app.route("/api/unlock", methods=["POST"])
+def api_unlock():
+    """
+    前端把访客输入的口令发过来校验一次。
+    正确就返回 ok:true，前端会把口令记在浏览器里，之后每次请求自动带上。
+    """
+    data = request.get_json(silent=True) or {}
+    supplied = str(data.get("code", ""))
+    if guard.code_ok(supplied):
+        return jsonify({"ok": True})
+    return jsonify({"ok": False, "error": "口令不对，请再确认一下。"}), 401
 
 
 # ---------------------------------------------------------------------------
@@ -102,6 +123,12 @@ def api_rephrase():
           "results": [ {key, zh, en, color, text, feature, strategy}, ... ]
         }
     """
+    # ---------- 第 0 步：访问口令校验 ----------
+    # 口令由前端放在 X-Access-Code 请求头里带上来
+    if not guard.code_ok(request.headers.get("X-Access-Code", "")):
+        return jsonify({"ok": False, "needCode": True,
+                        "error": "需要访问口令才能使用改写功能。"}), 401
+
     data = request.get_json(silent=True) or {}
 
     text = str(data.get("text", "")).strip()
@@ -134,9 +161,20 @@ def api_rephrase():
     engine = "offline"
     note = ""
     results = None
+    remaining = None
+
+    # ---------- 第 3.5 步：用量护栏 ----------
+    # 先向护栏"申请"一次大模型额度；额度用完就直接走离线模板，
+    # 网站依然可用，只是自然度下降——这比直接报错友好得多。
+    ip = guard.client_ip(request)
+    allowed, deny_reason, remaining = (True, "", None)
+    if llm_client.is_available():
+        allowed, deny_reason, remaining = guard.take(ip)
+        if not allowed:
+            note = deny_reason
 
     # ---------- 第 4 步：优先走大模型（A 轨） ----------
-    if llm_client.is_available():
+    if llm_client.is_available() and allowed:
         try:
             llm_out = llm_client.rephrase(text, scene, target_lang, styles)
             results = llm_out["results"]
@@ -156,6 +194,8 @@ def api_rephrase():
         except Exception as exc:  # noqa: BLE001 —— 这里要捕获所有异常做降级
             # 任何网络错误、超时、余额不足、JSON 解析失败，都自动降级
             app.logger.warning("大模型调用失败，降级到离线引擎：%s", exc)
+            # 用户没拿到大模型结果，把刚才占用的额度退回去，不能白扣
+            guard.refund(ip)
             results = None
             note = f"大模型调用失败（{type(exc).__name__}），已自动切换到离线模板模式。"
 
@@ -164,7 +204,8 @@ def api_rephrase():
         results = offline_engine.rephrase(text, scene, target_lang, styles)
         engine = "offline"
         # 把降级原因和离线说明拼在一起
-        note = (note + " " if note else "") + offline_engine.offline_note(target_lang)
+        note = (note + " " if note else "") + \
+               offline_engine.offline_note(target_lang, llm_client.is_available())
 
     return jsonify({
         "ok": True,
@@ -174,6 +215,8 @@ def api_rephrase():
         "input_lang": input_lang,
         "input_lang_label": LANGUAGE_LABELS.get(input_lang, "未识别"),
         "results": results,
+        # 今日额度快照，前端显示在提示条上
+        "quota": guard.snapshot() if llm_client.is_available() else None,
     })
 
 
@@ -187,6 +230,8 @@ def api_health():
         "app": __app_name__,
         "version": __version__,
         "engine": "llm" if llm_client.is_available() else "offline",
+        "codeRequired": guard.code_required(),
+        "quota": guard.snapshot() if llm_client.is_available() else None,
     })
 
 

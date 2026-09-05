@@ -462,14 +462,18 @@ def rephrase_map(text: str, scene_key: str, target_lang_key: str, styles: list) 
     return {item["key"]: item for item in rephrase(text, scene_key, target_lang_key, styles)}
 
 
-def offline_note(target_lang_key: str) -> str:
+def offline_note(target_lang_key: str, has_key: bool = False) -> str:
     """
     返回离线模式下要显示在页面顶部的提示文字。
-    英/法两种语言的局限更大，所以提示更详细。
+
+    参数:
+        target_lang_key : 目标语言，英/法的局限更大，提示更详细
+        has_key         : 服务器是否配置了 API Key。
+                          配了 Key 却走到离线（调用失败 / 额度用完），
+                          就不该再说"未检测到 API Key"，那会误导使用者。
     """
+    prefix = "本次由内置语用模板生成" if has_key else "当前为「离线演示模式」：未检测到 API Key"
     if target_lang_key in ("en", "fr"):
-        return ("当前为「离线演示模式」：未检测到 API Key。"
-                "英语/法语结果是按交际意图匹配的语用框架示例，未对原句逐句翻译，"
-                "请勿直接当作研究数据使用。配置 API Key 后即可获得贴合原句的改写。")
-    return ("当前为「离线演示模式」：未检测到 API Key，结果由内置语用模板生成，"
-            "自然度不及大模型。配置 API Key 后可获得更自然的改写与逐句语用分析。")
+        return (f"{prefix}。英语／法语结果是按交际意图匹配的语用框架示例，"
+                "未对原句逐句翻译，请勿直接当作研究数据使用。")
+    return (f"{prefix}，自然度不及大模型。")
