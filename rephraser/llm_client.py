@@ -81,6 +81,40 @@ def _extract_json(raw: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# 通用调用：发一组 messages，拿回模型输出的原始文本
+# 改写和挑战评分都用它，避免两处重复写建客户端的代码
+# ---------------------------------------------------------------------------
+def complete(messages: list, max_tokens: int = 2000, temperature: float = 0.8) -> str:
+    """
+    调用大模型并返回原始回复文本。
+
+    参数:
+        messages    : OpenAI 格式的对话列表
+        max_tokens  : 最多生成多少 token
+        temperature : 随机性。改写用 0.8 让各档更有区分度，
+                      评分用 0.3 让分数更稳定可复现（研究场景需要）
+    异常:
+        网络错误、超时、余额不足都会原样抛出，由调用方决定怎么降级
+    """
+    from openai import OpenAI
+
+    client = OpenAI(
+        api_key=_env("LLM_API_KEY"),
+        base_url=_env("LLM_BASE_URL", "https://api.deepseek.com"),
+        timeout=90.0,
+        max_retries=1,
+    )
+    response = client.chat.completions.create(
+        model=model_name(),
+        messages=messages,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        response_format={"type": "json_object"},
+    )
+    return response.choices[0].message.content
+
+
+# ---------------------------------------------------------------------------
 # 主函数：调用大模型完成改写
 # ---------------------------------------------------------------------------
 def rephrase(text: str, scene_key: str, target_lang_key: str, styles: list) -> dict:

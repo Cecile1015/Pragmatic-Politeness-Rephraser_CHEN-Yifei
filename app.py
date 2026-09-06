@@ -19,18 +19,20 @@ app.py —— 泡泡改写 2P Rephraser 的 Flask 后端主程序
 """
 
 import os
+import re
 
 from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, request
 
 from rephraser import __app_name__, __version__
-from rephraser import guard, llm_client, offline_engine
+from rephraser import challenges, guard, llm_client, offline_engine, scoring
 from rephraser.config import (
     LANGUAGE_KEYS,
     LANGUAGE_LABELS,
     MAX_INPUT_LENGTH,
     SCENE_KEYS,
     build_style_list,
+    get_scene,
     public_config,
 )
 from rephraser.lang_detect import detect_language
@@ -91,6 +93,9 @@ def api_config():
     cfg["codeRequired"] = guard.code_required()
     # 今日额度情况，显示在页面上让你随时知道余量
     cfg["quota"] = guard.snapshot() if llm_client.is_available() else None
+    # 游戏交互页要用的配置
+    cfg["maxAnswerLength"] = MAX_ANSWER_LENGTH
+    cfg["challengeCount"] = len(challenges.CHALLENGES)
     return jsonify(cfg)
 
 
@@ -232,6 +237,128 @@ def api_rephrase():
         "input_lang_label": LANGUAGE_LABELS.get(input_lang, "未识别"),
         "results": results,
         # 今日额度快照，前端显示在提示条上
+        "quota": guard.snapshot() if llm_client.is_available() else None,
+    })
+
+
+# ===========================================================================
+# 游戏交互：每日挑战 / 自由练习
+# ===========================================================================
+
+# 挑战作答的长度上限。比改写输入宽一些，因为一个完整的面子威胁行为
+# 往往需要铺垫＋理由＋缓冲，200 字容易不够用。
+MAX_ANSWER_LENGTH = 300
+
+
+@app.route("/api/challenge/daily")
+def api_challenge_daily():
+    """
+    取"今日挑战"。
+
+    【为什么日期由前端传？】
+    服务器在 UTC 时区，用户在香港（UTC+8）。如果用服务器日期，
+    香港时间早上 8 点之前拿到的还是"昨天"的题，打卡也会错位。
+    所以让浏览器把本地日期传上来。
+    """
+    if not guard.code_ok(request.headers.get("X-Access-Code", "")):
+        return jsonify({"ok": False, "needCode": True, "error": "需要访问口令。"}), 401
+
+    day = (request.args.get("day") or "").strip()
+    # 简单校验格式，防止乱传的字符串影响哈希
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", day or ""):
+        day = None
+
+    ch = challenges.daily_challenge(day)
+    return jsonify({"ok": True, "mode": "daily", "day": day,
+                    "challenge": challenges.public_view(ch)})
+
+
+@app.route("/api/challenge/random")
+def api_challenge_random():
+    """随机抽一题，用于自由练习。exclude 参数用来避开刚做完的那题。"""
+    if not guard.code_ok(request.headers.get("X-Access-Code", "")):
+        return jsonify({"ok": False, "needCode": True, "error": "需要访问口令。"}), 401
+
+    ch = challenges.random_challenge((request.args.get("exclude") or "").strip() or None)
+    return jsonify({"ok": True, "mode": "practice",
+                    "challenge": challenges.public_view(ch)})
+
+
+@app.route("/api/challenge/score", methods=["POST"])
+def api_challenge_score():
+    """
+    给一份作答打分。
+
+    请求体:
+        { "id": "c01", "answer": "老板，这个方向我理解……", "streak": 3 }
+    返回:
+        评分结果 + 积分换算 + 参考答案与语用学讲解（这时候才揭晓）
+    """
+    if not guard.code_ok(request.headers.get("X-Access-Code", "")):
+        return jsonify({"ok": False, "needCode": True, "error": "需要访问口令。"}), 401
+
+    data = request.get_json(silent=True) or {}
+    cid = str(data.get("id", "")).strip()
+    answer = str(data.get("answer", "")).strip()
+    try:
+        streak = max(0, int(data.get("streak", 0)))
+    except (TypeError, ValueError):
+        streak = 0
+
+    ch = challenges.get(cid)
+    if not ch:
+        return jsonify({"ok": False, "error": "题目编号不存在。"}), 400
+    if not answer:
+        return jsonify({"ok": False, "error": "请先写下你的说法再提交。"}), 400
+    if len(answer) > MAX_ANSWER_LENGTH:
+        return jsonify({"ok": False,
+                        "error": f"作答超过 {MAX_ANSWER_LENGTH} 字上限（当前 {len(answer)} 字）。"}), 400
+
+    scene = get_scene(ch["scene"])
+    scene_label = scene["label"] if scene else ch["scene"]
+
+    note = ""
+    result = None
+    ip = guard.client_ip(request)
+
+    # ---------- 优先大模型评分，同样走用量护栏 ----------
+    if llm_client.is_available():
+        allowed, deny_reason, _ = guard.take(ip)
+        if allowed:
+            try:
+                raw = llm_client.complete(
+                    scoring.build_score_prompt(answer, ch, scene_label),
+                    max_tokens=1200,
+                    # 评分用低温度：同一份作答重复提交，分数应尽量稳定，
+                    # 否则没法作为研究数据使用
+                    temperature=0.3,
+                )
+                result = scoring.parse_score(raw)
+            except Exception as exc:  # noqa: BLE001
+                app.logger.warning("评分调用失败，降级到规则引擎：%s", exc)
+                guard.refund(ip)
+                note = f"大模型评分失败（{type(exc).__name__}），本次由规则引擎打分。"
+        else:
+            note = deny_reason
+
+    # ---------- 规则引擎兜底 ----------
+    if result is None:
+        result = scoring.score_offline(answer, ch)
+        if not note:
+            note = "本次由离线规则引擎打分。"
+        note += "规则打分只识别语言形式，不理解语义，仅供练习参考。"
+
+    pts = scoring.points_for(result["overall"], streak)
+
+    return jsonify({
+        "ok": True,
+        "note": note,
+        "result": result,
+        "points": pts,
+        # 提交之后才揭晓参考答案和讲解
+        "reference": ch["reference"],
+        "explain": ch["note"],
+        "sceneLabel": scene_label,
         "quota": guard.snapshot() if llm_client.is_available() else None,
     })
 

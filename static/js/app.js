@@ -167,6 +167,7 @@
   const PAGE_TITLES = {
     task:    ['任务执行区', 'Pragmatic Politeness Rephraser'],
     history: ['历史改写存储区', 'Archive by Target Language'],
+    game:    ['游戏交互', 'Daily Pragmatic Challenge'],
     profile: ['个人专区', 'My Profile & Favourites']
   };
 
@@ -187,6 +188,7 @@
 
     // 4. 进入页面时刷新该页数据（保证数据永远是最新的）
     if (name === 'history') renderHistoryTiles();
+    if (name === 'game') renderGamePage();
     if (name === 'profile') renderProfilePage();
 
     // 5. 回到页面顶部
@@ -580,9 +582,12 @@
     const need = CONFIG.unlockPoints;
     $('pointsValue').textContent = points;
     $('pointsProgress').style.width = Math.min(100, (points / need) * 100) + '%';
-    $('pointsHint').textContent = points >= need
+    $('pointsHint').innerHTML = (points >= need
       ? '已解锁全部应用场景 🎉'
-      : `再提问 ${need - points} 次即可解锁「对待事务机构或陌生人」场景`;
+      : `再提问 ${need - points} 次即可解锁「对待事务机构或陌生人」场景`)
+      // 顺带把挑战数据也显示在这里，让积分的来源一目了然
+      + `<br><span style="opacity:.85;font-size:11px">连续打卡 ${Storage.currentStreak()} 天`
+      + `　最长 ${profile.bestStreak} 天　已完成挑战 ${Storage.gameStats().count} 题</span>`;
 
     // ---- 场景解锁清单 ----
     $('unlockList').innerHTML = CONFIG.scenes.map(s => {
@@ -646,6 +651,328 @@
   }
 
   /* =========================================================================
+     五点五、页面四：游戏交互（每日挑战 / 自由练习）
+     ========================================================================= */
+
+  let currentQuest = null;   // 当前显示的题目
+  let currentMode = 'daily'; // 'daily' 每日挑战 / 'practice' 自由练习
+  let lastQuestId = null;    // 上一题的编号，自由练习时用来避免连出同一题
+
+  /** 带上访问口令的 fetch，游戏页所有请求都走它 */
+  async function api(url, options) {
+    const opt = Object.assign({ headers: {} }, options || {});
+    opt.headers = Object.assign({
+      'Content-Type': 'application/json',
+      'X-Access-Code': getCode()
+    }, opt.headers);
+
+    const resp = await fetch(url, opt);
+    const data = await resp.json().catch(() => ({}));
+    if (resp.status === 401 || data.needCode) {
+      clearCode();
+      showGate('口令已失效，请重新输入');
+      throw new Error('needCode');
+    }
+    return data;
+  }
+
+  /** 按分数取颜色：沿用礼貌度色阶，红→黄→绿 */
+  function scoreColor(s) {
+    if (s >= 80) return '#2E8B57';
+    if (s >= 60) return '#D4A017';
+    return '#C0392B';
+  }
+
+  function scoreTier(s) {
+    if (s >= 85) return '很得体';
+    if (s >= 70) return '基本得体';
+    if (s >= 55) return '有待打磨';
+    return '需要重写';
+  }
+
+  /** 渲染打卡状态条 */
+  function renderStreak() {
+    const streak = Storage.currentStreak();
+    const stats = Storage.gameStats();
+    const done = Storage.dailyDone();
+
+    $('streakN').textContent = streak;
+    // 今天已打卡就点亮泡泡图标
+    document.querySelector('.streak').classList.toggle('is-active', done);
+    $('streakFlame').textContent = done ? '🫧' : '💤';
+
+    $('gameStats').innerHTML = stats.count
+      ? `已完成 ${stats.count} 题<br>平均 ${stats.avg} 分 · 最高 ${stats.best} 分`
+      : '还没有挑战记录';
+  }
+
+  /** 载入题目：每日挑战或随机练习 */
+  async function loadQuest(mode) {
+    currentMode = mode;
+    document.querySelectorAll('.mode').forEach(b =>
+      b.classList.toggle('is-on', b.dataset.mode === mode));
+
+    $('questArea').innerHTML =
+      `<div class="loading">正在取题<span class="loading__dots"></span></div>`;
+
+    try {
+      let data;
+      if (mode === 'daily') {
+        // 日期由浏览器提供，保证按用户本地时区算"今天"
+        data = await api(`/api/challenge/daily?day=${encodeURIComponent(Storage.today())}`);
+      } else {
+        const ex = lastQuestId ? `?exclude=${encodeURIComponent(lastQuestId)}` : '';
+        data = await api(`/api/challenge/random${ex}`);
+      }
+      if (!data.ok) throw new Error(data.error || '取题失败');
+      currentQuest = data.challenge;
+      lastQuestId = currentQuest.id;
+      renderQuest();
+    } catch (e) {
+      if (e.message === 'needCode') return;
+      $('questArea').innerHTML =
+        `<div class="notice notice--error">取题失败，请确认网络后重试。</div>`;
+    }
+  }
+
+  /** 渲染题面与作答框 */
+  function renderQuest() {
+    const q = currentQuest;
+    const doneToday = currentMode === 'daily' && Storage.dailyDone();
+
+    // 难度用三个点表示
+    const dots = [1, 2, 3].map(i =>
+      `<i class="${i <= q.difficulty ? 'on' : ''}"></i>`).join('');
+
+    const max = CONFIG.maxAnswerLength || 300;
+
+    $('questArea').innerHTML = `
+      ${doneToday ? `<div class="notice notice--info">
+        今天的挑战已经完成，下面这题可以再练一次，但不会重复计入打卡。
+      </div>` : ''}
+
+      <div class="quest">
+        <div class="quest__top">
+          <span class="quest__act">${esc(q.act)}</span>
+          <span style="font-size:12px;color:var(--text-soft)">${esc(sceneLabelOf(q.scene))}</span>
+          <span class="dots">${dots}</span>
+        </div>
+        <div class="quest__context">${esc(q.context)}</div>
+        <div class="quest__goal">🎯 ${esc(q.goal)}</div>
+
+        <textarea class="quest__answer" id="answerBox" maxlength="${max}"
+          placeholder="写下你认为最得体的说法…"></textarea>
+        <div class="compose__count" id="answerCount">0 / ${max}</div>
+
+        <button class="btn-primary" id="submitAnswerBtn">提交作答</button>
+      </div>
+    `;
+
+    // 字数统计
+    const box = $('answerBox'), cnt = $('answerCount'), btn = $('submitAnswerBtn');
+    const upd = () => {
+      cnt.textContent = `${box.value.length} / ${max}`;
+      cnt.classList.toggle('is-over', box.value.length > max);
+      btn.disabled = box.value.trim().length === 0;
+    };
+    box.addEventListener('input', upd);
+    upd();
+
+    btn.addEventListener('click', submitAnswer);
+  }
+
+  /** 场景 key -> 中文名 */
+  function sceneLabelOf(key) {
+    const s = CONFIG.scenes.find(x => x.key === key);
+    return s ? s.label : key;
+  }
+
+  /** 提交作答并渲染评分 */
+  async function submitAnswer() {
+    const answer = $('answerBox').value.trim();
+    if (!answer) { toast('请先写下你的说法'); return; }
+
+    const btn = $('submitAnswerBtn');
+    btn.disabled = true;
+    btn.textContent = '评分中…';
+
+    try {
+      const data = await api('/api/challenge/score', {
+        method: 'POST',
+        body: JSON.stringify({
+          id: currentQuest.id,
+          answer: answer,
+          // 把当前连续天数传给后端，用于计算打卡加成
+          streak: Storage.currentStreak()
+        })
+      });
+
+      if (!data.ok) {
+        toast(data.error || '评分失败');
+        btn.disabled = false;
+        btn.textContent = '提交作答';
+        return;
+      }
+
+      // ---- 每日挑战且今天还没打卡：记打卡，加积分 ----
+      const isFirstDaily = (currentMode === 'daily') && !Storage.dailyDone();
+      let earned = 0;
+      if (isFirstDaily) {
+        Storage.markDaily();
+        earned = data.points.total;
+        Storage.addPoints(earned);
+      }
+
+      // ---- 存挑战记录（自由练习也存，方便导出做研究）----
+      Storage.addGame({
+        cid: currentQuest.id,
+        mode: currentMode,
+        act: currentQuest.act,
+        sceneLabel: data.sceneLabel,
+        context: currentQuest.context,
+        answer: answer,
+        overall: data.result.overall,
+        dimensions: data.result.dimensions,
+        engine: data.result.engine,
+        counted: isFirstDaily
+      });
+
+      if (data.quota) { CONFIG.quota = data.quota; renderEngineNotice(); }
+
+      renderVerdict(answer, data, earned, isFirstDaily);
+      renderStreak();
+      renderGameLog();
+      renderSelects();   // 积分可能刚好跨过解锁线
+
+    } catch (e) {
+      if (e.message === 'needCode') return;
+      toast('评分请求失败，请稍后重试');
+      btn.disabled = false;
+      btn.textContent = '提交作答';
+    }
+  }
+
+  /** 渲染评分结果 */
+  function renderVerdict(answer, data, earned, counted) {
+    const r = data.result;
+    const c = scoreColor(r.overall);
+    const d = r.dimensions;
+
+    const dimRow = (label, val) => `
+      <div class="dim">
+        <div class="dim__row"><span>${label}</span><b>${val}</b></div>
+        <div class="dim__bar"><div class="dim__fill"
+          style="width:${val}%;background:${scoreColor(val)}"></div></div>
+      </div>`;
+
+    $('questArea').innerHTML = `
+      <div class="verdict">
+        <div class="verdict__head" style="background:${c}">
+          <div class="verdict__score">${r.overall}<small> / 100</small></div>
+          <div class="verdict__tier">${esc(scoreTier(r.overall))}</div>
+        </div>
+
+        <div class="verdict__body">
+          <div class="verdict__comment">${esc(r.comment)}</div>
+
+          ${dimRow('得体度 Appropriateness', d.appropriateness)}
+          ${dimRow('策略性 Strategy', d.strategy)}
+          ${dimRow('自然度 Naturalness', d.naturalness)}
+
+          ${r.used && r.used.length ? `
+            <div class="mini-title">你用到的语用手段</div>
+            <div class="chips">${r.used.map(u => `<span>${esc(u)}</span>`).join('')}</div>` : ''}
+
+          <div class="mini-title">你的作答</div>
+          <div class="quote quote--plain">${esc(answer)}</div>
+
+          <div class="mini-title">改进建议</div>
+          <ul class="tips">${r.suggestions.map(s => `<li>${esc(s)}</li>`).join('')}</ul>
+
+          ${r.improved ? `
+            <div class="mini-title">在你原话基础上的改进</div>
+            <div class="quote">${esc(r.improved)}</div>` : ''}
+
+          <div class="mini-title">参考说法</div>
+          <div class="quote quote--plain">${esc(data.reference)}</div>
+
+          <div class="mini-title">语用学讲解</div>
+          <div class="explain">${esc(data.explain)}</div>
+
+          ${counted ? `
+            <div class="earned">
+              <span>🫧</span>
+              <div>积分 <b>+${earned}</b><br>
+                <span style="opacity:.9;font-size:12px">${esc(data.points.reason)}</span></div>
+            </div>` : `
+            <div class="notice notice--info" style="margin:14px 0 0">
+              自由练习不计入积分与打卡，但作答已存入记录，可以导出。
+            </div>`}
+
+          ${data.note ? `<div class="notice notice--warn" style="margin-top:10px">${esc(data.note)}</div>` : ''}
+
+          <div class="btn-row">
+            <button class="btn-outline" id="againBtn">再来一题</button>
+            <button class="btn-outline" id="retryBtn">这题重写</button>
+          </div>
+        </div>
+      </div>`;
+
+    // 「再来一题」永远走自由练习，避免每日题被反复刷分
+    $('againBtn').addEventListener('click', () => loadQuest('practice'));
+    $('retryBtn').addEventListener('click', () => renderQuest());
+  }
+
+  /** 挑战记录列表 */
+  function renderGameLog() {
+    const list = Storage.getGames();
+    $('gameCount').textContent = list.length ? `(${list.length})` : '';
+    $('gameExportRow').hidden = list.length === 0;
+
+    if (!list.length) {
+      $('gameLog').innerHTML =
+        `<div class="empty"><span class="empty__icon">🎯</span>还没有挑战记录，从上面开始第一题吧</div>`;
+      return;
+    }
+
+    // 只显示最近 10 条，全部记录可以导出查看
+    $('gameLog').innerHTML = list.slice(0, 10).map(g => `
+      <div class="glog">
+        <div class="glog__score" style="background:${scoreColor(g.overall)}">${g.overall}</div>
+        <div class="glog__main">
+          <div class="glog__act">${esc(g.act)}
+            <span style="font-weight:400;color:var(--text-soft);font-size:11px">
+              · ${g.mode === 'daily' ? '每日' : '练习'} · ${formatTime(g.ts)}</span>
+          </div>
+          <div class="glog__ans">${esc(g.answer)}</div>
+        </div>
+      </div>`).join('');
+  }
+
+  /** 整个游戏页的渲染入口 */
+  function renderGamePage() {
+    renderStreak();
+    renderGameLog();
+    // 只在第一次进入时取题，避免每次切页面都重新请求
+    if (!currentQuest) loadQuest('daily');
+  }
+
+  /** 导出挑战作答为 CSV，方便发给研究者做分析 */
+  function exportGames() {
+    const csv = Storage.exportGamesCSV();
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `泡泡改写_挑战作答_${Storage.today()}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast('已导出 CSV');
+  }
+
+  /* =========================================================================
      六、启动：绑定所有事件，拉取配置
      ========================================================================= */
 
@@ -674,6 +1001,13 @@
       }
     });
 
+    // 游戏页：模式切换（每日挑战 / 自由练习）
+    document.querySelectorAll('.mode').forEach(b =>
+      b.addEventListener('click', () => loadQuest(b.dataset.mode)));
+
+    // 游戏页：导出作答 CSV
+    $('exportGamesBtn').addEventListener('click', exportGames);
+
     // 个人页：昵称输入即时保存
     $('nicknameInput').addEventListener('change', (e) => {
       Storage.setNickname(e.target.value);
@@ -685,6 +1019,7 @@
     $('resetBtn').addEventListener('click', () => {
       if (confirm('这会删除全部历史记录、收藏、积分和昵称，确定吗？\n建议先点「导出全部数据」做个备份。')) {
         Storage.resetAll();
+        currentQuest = null;      // 让游戏页下次进入时重新取题
         renderProfilePage();
         renderRecent();
         renderSelects();

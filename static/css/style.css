@@ -750,7 +750,345 @@ html, body {
 .btn-outline--danger:hover { background: #FDEEEC; }
 
 /* --------------------------------------------------------------------------
-   7. 底部导航栏（三个图标切换三个页面）
+   6.5 游戏交互页（每日挑战 / 自由练习）
+   -------------------------------------------------------------------------- */
+
+/* ---- 连续打卡状态条 ---- */
+.streak {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.streak__flame {
+  font-size: 28px;
+  line-height: 1;
+  /* 打卡中断时变灰，一眼就能看出状态 */
+  filter: grayscale(1);
+  opacity: 0.45;
+  transition: filter 0.3s, opacity 0.3s;
+}
+
+.streak.is-active .streak__flame {
+  filter: none;
+  opacity: 1;
+}
+
+.streak__main { flex-shrink: 0; }
+
+.streak__n {
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--brick);
+}
+
+.streak__n small { font-size: 13px; font-weight: 400; }
+
+.streak__l {
+  font-size: 11px;
+  color: var(--text-soft);
+}
+
+.streak__stats {
+  margin-left: auto;
+  text-align: right;
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--text-soft);
+}
+
+/* ---- 模式切换（每日挑战 / 自由练习）---- */
+.modes {
+  display: flex;
+  gap: 6px;
+  margin: 14px 0;
+  padding: 4px;
+  background: var(--brick-pale);
+  border-radius: 10px;
+}
+
+.mode {
+  flex: 1;
+  padding: 8px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--brick);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.mode.is-on {
+  background: var(--surface);
+  color: var(--brick-dark);
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(120, 60, 45, 0.12);
+}
+
+/* ---- 题目卡 ---- */
+.quest {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+
+.quest__top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+/* 言语行为标签，如「表达异议」「拒绝请求」 */
+.quest__act {
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--brick);
+  border-radius: 20px;
+  padding: 3px 11px;
+}
+
+/* 难度用三个点表示，实心的数量代表难度 */
+.dots { display: inline-flex; gap: 3px; margin-left: auto; }
+
+.dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--border);
+}
+
+.dots i.on { background: var(--brick); }
+
+.quest__context {
+  font-size: 16px;
+  line-height: 1.7;
+  margin-bottom: 10px;
+}
+
+.quest__goal {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--brick-dark);
+  background: var(--brick-pale);
+  border-left: 3px solid var(--brick);
+  border-radius: 0 8px 8px 0;
+  padding: 8px 11px;
+}
+
+/* ---- 作答区 ---- */
+.quest__answer {
+  width: 100%;
+  min-height: 96px;
+  resize: vertical;
+  margin-top: 12px;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #FDFBFA;
+  font-family: inherit;
+  font-size: 15.5px;
+  line-height: 1.7;
+  color: var(--text);
+  outline: none;
+}
+
+.quest__answer:focus { border-color: var(--brick); }
+
+/* ---- 评分结果 ---- */
+.verdict {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  margin-top: 12px;
+}
+
+/* 顶部大分数区，底色随分数档位变化 */
+.verdict__head {
+  padding: 18px 16px;
+  text-align: center;
+  color: #fff;
+}
+
+.verdict__score {
+  font-size: 46px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.verdict__score small { font-size: 15px; font-weight: 400; opacity: 0.8; }
+
+.verdict__tier {
+  font-size: 12px;
+  letter-spacing: 2px;
+  opacity: 0.9;
+  margin-top: 2px;
+}
+
+.verdict__body { padding: 14px 16px; }
+
+.verdict__comment {
+  font-size: 14px;
+  line-height: 1.7;
+  margin-bottom: 14px;
+}
+
+/* 三个维度的横条 */
+.dim { margin-bottom: 9px; }
+
+.dim__row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-soft);
+  margin-bottom: 3px;
+}
+
+.dim__row b {
+  color: var(--text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.dim__bar {
+  height: 6px;
+  background: var(--border);
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+.dim__fill {
+  height: 100%;
+  border-radius: 20px;
+  transition: width 0.6s ease;
+}
+
+/* 用到的语用策略标签 */
+.chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+
+.chips span {
+  font-size: 11px;
+  color: var(--brick);
+  background: var(--brick-pale);
+  border: 1px solid var(--brick-light);
+  border-radius: 20px;
+  padding: 2px 9px;
+}
+
+/* 改进建议列表 */
+.tips { margin: 0; padding-left: 18px; }
+
+.tips li {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-soft);
+  margin-bottom: 5px;
+}
+
+/* 示范说法 / 参考答案 的引用块 */
+.quote {
+  font-size: 15px;
+  line-height: 1.75;
+  padding: 10px 12px;
+  background: var(--brick-pale);
+  border-radius: 8px;
+  word-break: break-word;
+}
+
+.quote--plain {
+  background: #FDFBFA;
+  border: 1px solid var(--border);
+}
+
+/* 语用学讲解 */
+.explain {
+  font-size: 13px;
+  line-height: 1.75;
+  color: var(--text-soft);
+  padding: 11px 12px;
+  background: #FDFBFA;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+}
+
+/* 小标题 */
+.mini-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--brick);
+  margin: 14px 0 6px;
+}
+
+/* 积分获得提示 */
+.earned {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, var(--brick) 0%, var(--brick-dark) 100%);
+  color: #fff;
+  border-radius: 9px;
+  font-size: 13px;
+}
+
+.earned b { font-size: 18px; }
+
+/* ---- 挑战记录列表 ---- */
+.glog {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 7px;
+}
+
+.glog__score {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+.glog__main { flex: 1; min-width: 0; }
+
+.glog__act { font-size: 13px; font-weight: 600; }
+
+.glog__ans {
+  font-size: 12px;
+  color: var(--text-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------------------------
+   7. 底部导航栏（四个图标切换四个页面）
    -------------------------------------------------------------------------- */
 .tabbar {
   position: fixed;

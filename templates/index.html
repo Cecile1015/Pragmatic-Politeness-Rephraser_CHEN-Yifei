@@ -106,7 +106,39 @@
   </section>
 
   <!-- ===================================================================
-       页面三：个人专区
+       页面三：游戏交互（每日挑战 / 自由练习）
+       =================================================================== -->
+  <section class="page" id="page-game">
+
+    <!-- 连续打卡状态条 -->
+    <div class="streak">
+      <div class="streak__flame" id="streakFlame">🫧</div>
+      <div class="streak__main">
+        <div class="streak__n"><span id="streakN">0</span><small> 天</small></div>
+        <div class="streak__l">连续打卡</div>
+      </div>
+      <div class="streak__stats" id="gameStats"></div>
+    </div>
+
+    <!-- 模式切换：每日挑战 / 自由练习 -->
+    <div class="modes">
+      <button class="mode is-on" data-mode="daily">每日挑战</button>
+      <button class="mode" data-mode="practice">自由练习</button>
+    </div>
+
+    <!-- 题目、作答框、评分结果都由 app.js 渲染到这里 -->
+    <div id="questArea"></div>
+
+    <!-- 挑战记录 -->
+    <div class="section-title">挑战记录 <span id="gameCount" style="color:var(--text-soft);font-weight:400;"></span></div>
+    <div id="gameLog"></div>
+    <div class="btn-row" id="gameExportRow" hidden>
+      <button class="btn-outline" id="exportGamesBtn">导出我的作答 (CSV)</button>
+    </div>
+  </section>
+
+  <!-- ===================================================================
+       页面四：个人专区
        =================================================================== -->
   <section class="page" id="page-profile">
 
@@ -161,6 +193,11 @@
       <!-- 文件夹图标 = 历史存储 -->
       <svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
       <span>历史</span>
+    </button>
+    <button class="tabbar__btn" data-page="game">
+      <!-- 靶心图标 = 游戏交互（瞄准"最得体的说法"） -->
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.4"/></svg>
+      <span>挑战</span>
     </button>
     <button class="tabbar__btn" data-page="profile">
       <!-- 人像图标 = 个人专区 -->

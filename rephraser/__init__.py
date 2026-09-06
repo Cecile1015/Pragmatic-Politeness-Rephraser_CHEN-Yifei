@@ -13,5 +13,5 @@ rephraser 包 —— 泡泡改写的核心逻辑层
     offline_engine.py B 轨引擎：内置语用模板，无需联网
 """
 
-__version__ = "1.1.2"
+__version__ = "1.2.0"
 __app_name__ = "泡泡改写 2P Rephraser"

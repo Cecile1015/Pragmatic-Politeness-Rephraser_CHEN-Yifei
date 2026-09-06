@@ -22,6 +22,7 @@ const Storage = (function () {
   const KEY_PROFILE = 'pp_profile';
   const KEY_HISTORY = 'pp_history';
   const KEY_FAVS    = 'pp_favorites';
+  const KEY_GAME    = 'pp_challenges';   // 游戏交互：历次挑战作答与得分
 
   // 历史记录上限。localStorage 总容量约 5MB，超过上限就淘汰最旧的一条
   const MAX_HISTORY = 200;
@@ -65,10 +66,16 @@ const Storage = (function () {
   function getProfile() {
     const p = read(KEY_PROFILE, null);
     // 第一次使用时给一份默认值
-    if (!p || typeof p !== 'object') return { nickname: '', points: 0 };
+    if (!p || typeof p !== 'object') {
+      return { nickname: '', points: 0, streak: 0, bestStreak: 0, lastDailyDay: '' };
+    }
     return {
       nickname: typeof p.nickname === 'string' ? p.nickname : '',
-      points: Number.isFinite(p.points) ? p.points : 0
+      points: Number.isFinite(p.points) ? p.points : 0,
+      // ---- 以下三项是"游戏交互"页新增的 ----
+      streak: Number.isFinite(p.streak) ? p.streak : 0,               // 当前连续打卡天数
+      bestStreak: Number.isFinite(p.bestStreak) ? p.bestStreak : 0,   // 历史最长连续
+      lastDailyDay: typeof p.lastDailyDay === 'string' ? p.lastDailyDay : '' // 上次完成每日挑战的日期
     };
   }
 
@@ -89,6 +96,96 @@ const Storage = (function () {
 
   function getPoints() {
     return getProfile().points;
+  }
+
+  /** 一次加多个积分（挑战完成时用，改写仍然是一次 +1） */
+  function addPoints(n) {
+    const p = getProfile();
+    p.points = p.points + (Number(n) || 0);
+    write(KEY_PROFILE, p);
+    return p.points;
+  }
+
+  /* =============================================================
+     二点五、游戏交互：连续打卡与挑战记录
+     ============================================================= */
+
+  /** 把 'YYYY-MM-DD' 往前推一天，用来判断"昨天有没有打卡" */
+  function prevDay(dayStr) {
+    const d = new Date(dayStr + 'T12:00:00');   // 用正午避免时区把日期推错
+    d.setDate(d.getDate() - 1);
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+
+  /** 今天（浏览器本地时区）的 'YYYY-MM-DD' */
+  function today() {
+    const d = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+
+  /** 今天的每日挑战是否已经完成 */
+  function dailyDone(day) {
+    return getProfile().lastDailyDay === (day || today());
+  }
+
+  /**
+   * 完成每日挑战后更新连续打卡天数。
+   *
+   * 规则：
+   *   昨天也打了卡  -> 连续 +1
+   *   昨天没打（断了）-> 重新从 1 开始
+   *   今天已经打过   -> 不重复计算
+   */
+  function markDaily(day) {
+    const d = day || today();
+    const p = getProfile();
+    if (p.lastDailyDay === d) return p;          // 今天已记过，不重复
+
+    p.streak = (p.lastDailyDay === prevDay(d)) ? p.streak + 1 : 1;
+    p.lastDailyDay = d;
+    if (p.streak > p.bestStreak) p.bestStreak = p.streak;
+    write(KEY_PROFILE, p);
+    return p;
+  }
+
+  /**
+   * 读取当前连续天数，但会先检查是否已经断了。
+   * 例如上次打卡是三天前，那 streak 显示应该是 0 而不是旧值。
+   */
+  function currentStreak() {
+    const p = getProfile();
+    if (!p.lastDailyDay) return 0;
+    const t = today();
+    if (p.lastDailyDay === t || p.lastDailyDay === prevDay(t)) return p.streak;
+    return 0;   // 断了
+  }
+
+  function getGames() {
+    const l = read(KEY_GAME, []);
+    return Array.isArray(l) ? l : [];
+  }
+
+  /** 存一条挑战记录（最多留 200 条，和历史记录一致） */
+  function addGame(rec) {
+    const l = getGames();
+    l.unshift(Object.assign({ id: makeId(), ts: Date.now() }, rec));
+    if (l.length > MAX_HISTORY) l.length = MAX_HISTORY;
+    write(KEY_GAME, l);
+    return l[0];
+  }
+
+  /** 挑战统计：做过几题、平均分、最高分 */
+  function gameStats() {
+    const l = getGames();
+    if (!l.length) return { count: 0, avg: 0, best: 0 };
+    const scores = l.map(g => Number(g.overall) || 0);
+    return {
+      count: l.length,
+      avg: Math.round(scores.reduce((a, b) => a + b, 0) / scores.length),
+      best: Math.max.apply(null, scores)
+    };
   }
 
   /* =============================================================
@@ -232,8 +329,40 @@ const Storage = (function () {
       app: '泡泡改写 2P Rephraser',
       profile: getProfile(),
       history: getHistory(),
-      favorites: getFavorites()
+      favorites: getFavorites(),
+      challenges: getGames()
     };
+  }
+
+  /**
+   * 只导出挑战作答，做成 CSV。
+   * 【为什么单独做一个 CSV】
+   * 这是受试者要发给研究者的东西，CSV 能直接拖进 Excel 或 R 做分析，
+   * 比 JSON 好用得多。字段顺序按"情境→作答→得分"排，方便肉眼校对。
+   */
+  function exportGamesCSV() {
+    const rows = getGames();
+    const head = ['时间', '题号', '模式', '言语行为', '场景', '情境',
+                  '作答', '总分', '得体度', '策略性', '自然度', '评分引擎'];
+
+    // CSV 转义：字段里有逗号、引号或换行时，要用双引号包起来并把引号翻倍
+    const cell = v => {
+      const s = String(v == null ? '' : v);
+      return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    };
+
+    const lines = [head.map(cell).join(',')];
+    rows.forEach(g => {
+      const d = g.dimensions || {};
+      lines.push([
+        new Date(g.ts).toISOString(), g.cid, g.mode === 'daily' ? '每日挑战' : '自由练习',
+        g.act, g.sceneLabel, g.context, g.answer,
+        g.overall, d.appropriateness, d.strategy, d.naturalness, g.engine
+      ].map(cell).join(','));
+    });
+
+    // BOM 开头，否则 Excel 打开中文会乱码
+    return '﻿' + lines.join('\r\n');
   }
 
   /** 清空所有数据（会弹确认框，在 app.js 里处理） */
@@ -242,6 +371,7 @@ const Storage = (function () {
       localStorage.removeItem(KEY_PROFILE);
       localStorage.removeItem(KEY_HISTORY);
       localStorage.removeItem(KEY_FAVS);
+      localStorage.removeItem(KEY_GAME);
     } catch (e) {
       console.warn('[storage] 清空失败：', e);
     }
@@ -252,10 +382,13 @@ const Storage = (function () {
      --------------------------------------------------------------- */
   return {
     MAX_HISTORY,
-    getProfile, setNickname, addPoint, getPoints,
+    getProfile, setNickname, addPoint, addPoints, getPoints,
     getHistory, addHistory, getHistoryByLang, countByLang, getRecent,
     deleteHistory, clearLang, updateInputLang,
     getFavorites, isFaved, toggleFavorite, removeFavorite,
+    // 游戏交互
+    today, dailyDone, markDaily, currentStreak,
+    getGames, addGame, gameStats, exportGamesCSV,
     exportAll, resetAll
   };
 })();
