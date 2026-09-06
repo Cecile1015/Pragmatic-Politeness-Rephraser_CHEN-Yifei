@@ -44,6 +44,19 @@ app = Flask(__name__)
 app.config["JSON_AS_ASCII"] = False
 app.json.ensure_ascii = False
 
+# ---------------------------------------------------------------------------
+# 启动时把关键配置状态打进日志。
+# 部署到 Render 后，在左侧 Logs 标签就能一眼看出：
+# Key 认到了没有、口令启用了没有、口令是不是多了引号或空格。
+# 注意这里只打印长度和首尾字符，绝不打印密钥或口令原文。
+# ---------------------------------------------------------------------------
+app.logger.warning(
+    "[启动] 改写引擎：%s｜%s｜每日上限 %d 次，单人 %d 次",
+    ("大模型 " + llm_client.model_name()) if llm_client.is_available() else "离线模板（未检测到 LLM_API_KEY）",
+    guard.describe() if guard.code_required() else "未启用访问口令",
+    guard.daily_limit(), guard.per_ip_daily_limit(),
+)
+
 
 # ---------------------------------------------------------------------------
 # 页面路由：返回单页应用的 HTML 骨架
@@ -94,6 +107,9 @@ def api_unlock():
     supplied = str(data.get("code", ""))
     if guard.code_ok(supplied):
         return jsonify({"ok": True})
+    # 把诊断信息写进服务器日志（只有你在 Render 的 Logs 里能看到），
+    # 方便你对照出到底是引号、空格还是真的输错了
+    app.logger.warning("[口令] %s", guard.describe(supplied))
     return jsonify({"ok": False, "error": "口令不对，请再确认一下。"}), 401
 
 

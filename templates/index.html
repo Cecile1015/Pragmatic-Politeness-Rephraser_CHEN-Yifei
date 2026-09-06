@@ -8,7 +8,7 @@
 
   <!-- 用泡泡图标作为浏览器标签页的小图标 -->
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/logo.svg') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v=version) }}">
 </head>
 
 <body>
@@ -191,7 +191,7 @@
 </div>
 
 <!-- 先加载存储模块，再加载主逻辑，顺序不能反 -->
-<script src="{{ url_for('static', filename='js/storage.js') }}"></script>
-<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+<script src="{{ url_for('static', filename='js/storage.js', v=version) }}"></script>
+<script src="{{ url_for('static', filename='js/app.js', v=version) }}"></script>
 </body>
 </html>

@@ -658,11 +658,7 @@
     // 提交改写
     $('submitBtn').addEventListener('click', handleSubmit);
 
-    // 口令遮罩：点按钮或按回车都能提交
-    $('gateBtn').addEventListener('click', tryUnlock);
-    $('gateInput').addEventListener('keydown', e => {
-      if (e.key === 'Enter') tryUnlock();
-    });
+    // 口令遮罩的事件已经在 init() 一开始由 bindGate() 绑好了，这里不再重复绑定
 
     // 历史页：返回语言分区
     $('historyBackBtn').addEventListener('click', renderHistoryTiles);
@@ -697,8 +693,24 @@
     });
   }
 
+  /**
+   * 口令框的事件单独提前绑定。
+   *
+   * 【为什么不放在 bindEvents 里一起绑】
+   * bindEvents 要等 /api/config 请求回来之后才执行。万一那个请求慢、
+   * 失败，或者前面任何一行 JS 报错，口令框就会变成一个点不动的死框。
+   * 把它拎出来在脚本一加载时就绑好，口令框任何时候都是能用的。
+   */
+  function bindGate() {
+    const btn = $('gateBtn'), input = $('gateInput');
+    if (!btn || !input) return;
+    btn.addEventListener('click', tryUnlock);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') tryUnlock(); });
+  }
+
   /** 应用启动入口 */
   async function init() {
+    bindGate();   // 第一件事：先让口令框能用
     try {
       const resp = await fetch('/api/config');
       CONFIG = await resp.json();

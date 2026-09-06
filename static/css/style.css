@@ -869,6 +869,17 @@ html, body {
 
 /* ---- 访问口令遮罩层 ---- */
 /* 启用了 ACCESS_CODE 时，未解锁的访客会看到这一层，盖住整个界面 */
+/*
+  【重要，别删这一条】
+  HTML 的 hidden 属性是靠浏览器默认样式 [hidden]{display:none} 生效的，
+  优先级极低。下面 .gate 写了 display:flex，会直接把它压过去——
+  结果就是 JS 还没跑起来时口令框已经显示，而那时「进入」按钮尚未绑定事件，
+  点了毫无反应。所以必须显式声明这一条把它盖回来。
+*/
+.gate[hidden] {
+  display: none !important;
+}
+
 .gate {
   position: fixed;
   inset: 0;                      /* 等价于 top/right/bottom/left 都是 0 */

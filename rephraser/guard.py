@@ -35,9 +35,38 @@ _state = {"day": None, "total": 0, "ips": {}}
 # ---------------------------------------------------------------------------
 # 读取配置
 # ---------------------------------------------------------------------------
+def _clean(s: str) -> str:
+    """
+    清洗口令字符串，专门对付复制粘贴带来的各种看不见的问题。
+
+    实践中最常见的三类错误：
+      1. 在 Render 的 Value 栏里写成了 "口令"（带引号）—— 引号会变成口令的一部分
+      2. 从聊天软件或网页复制时带上了零宽空格、不换行空格
+      3. 把整行 ACCESS_CODE=xxx 粘进了 Value 栏
+    这些都不是使用者的错，程序应该容错，而不是让人对着"口令不对"发呆。
+    """
+    s = str(s or "")
+
+    # 去掉零宽字符和 BOM（复制粘贴时最容易混进来、且完全看不见）
+    for ch in ("​", "‌", "‍", "﻿"):
+        s = s.replace(ch, "")
+    # 不换行空格换成普通空格，再统一去首尾空白
+    s = s.replace(" ", " ").strip()
+
+    # 有人会把整行都粘进 Value 栏
+    if s.upper().startswith("ACCESS_CODE="):
+        s = s.split("=", 1)[1].strip()
+
+    # 去掉成对的引号（Render 的 Value 栏不需要引号）
+    if len(s) >= 2 and s[0] == s[-1] and s[0] in ('"', "'"):
+        s = s[1:-1].strip()
+
+    return s
+
+
 def access_code() -> str:
     """访问口令；返回空字符串表示不启用口令。"""
-    return (os.getenv("ACCESS_CODE") or "").strip()
+    return _clean(os.getenv("ACCESS_CODE"))
 
 
 def _int_env(name: str, default: int) -> int:
@@ -70,13 +99,33 @@ def code_required() -> bool:
 def code_ok(supplied: str) -> bool:
     """
     校验访客提交的口令。
-    没设口令时一律放行；设了口令就必须完全一致（会自动去掉首尾空格，
-    因为用户从聊天软件复制口令时经常会带上空格）。
+    没设口令时一律放行；设了口令时，两边都先做同样的清洗再比对。
     """
     real = access_code()
     if not real:
         return True
-    return (supplied or "").strip() == real
+    return _clean(supplied) == real
+
+
+def describe(supplied: str = None) -> str:
+    """
+    生成一行只写进服务器日志的诊断信息。
+
+    【为什么只给长度和首尾字符，不给完整口令】
+    Render 的日志只有你自己能看，但把口令原文写进日志仍然是个坏习惯
+    （日志会被导出、截图、分享）。长度和首尾字符已经足够定位
+    "引号没去掉""多了个空格""粘错了变量名"这几类问题。
+    """
+    real = access_code()
+    def sketch(s):
+        if not s:
+            return "空"
+        return f"长度{len(s)}，首字符 {s[0]!r}，末字符 {s[-1]!r}"
+
+    if supplied is None:
+        return f"服务器口令：{sketch(real)}"
+    return (f"口令比对失败 —— 服务器端：{sketch(real)}；"
+            f"访客提交（清洗后）：{sketch(_clean(supplied))}")
 
 
 # ---------------------------------------------------------------------------
