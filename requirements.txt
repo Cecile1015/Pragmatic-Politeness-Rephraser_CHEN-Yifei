@@ -14,3 +14,4 @@ openai>=1.40.0
 # 简体 -> 香港繁体转换，用于离线模式下生成粤语文本
 # 不装也能跑，只是离线粤语结果里会残留简体字
 opencc-python-reimplemented>=0.1.7
+gunicorn
